@@ -252,6 +252,90 @@ private:
 	CBTYPE					m_cb		;
 };
 
+class CFFmpegAudioDecoder
+{
+private:
+	typedef std::function< bool( AVRational, AVFrame* ) > CBTYPE ;
+
+public:
+	bool Open( AVFormatContext* input_file, CBTYPE cb )
+	{
+		const auto idx = av_find_best_stream( input_file, AVMEDIA_TYPE_AUDIO, -1, -1, NULL, 0 ) ;
+		if ( idx < 0 )
+		{
+			return false ;
+		}
+		
+		m_timebase = input_file->streams[ idx ]->time_base ;
+		
+		const auto codec_ctx = input_file->streams[ idx ]->codec ;
+		if ( codec_ctx == nullptr )
+		{
+			return false ;
+		}
+		
+		const auto codec = avcodec_find_decoder( codec_ctx->codec_id ) ;
+		if ( codec == nullptr )
+		{
+			return false ;
+		}
+		
+		AVDictionary* opts = nullptr ;
+		av_dict_set( &opts, "refcounted_frames", "0", 0 ) ;
+		if ( avcodec_open2( codec_ctx, codec, &opts ) < 0 )
+		{
+			return false ;
+		}
+
+		m_frame = av_frame_alloc() ;
+		if ( !m_frame )
+		{
+			return false ;
+		}
+
+		m_cb = cb ;
+		if ( !m_cb )
+		{
+			return false ;
+		}
+		
+		codec_ctx->opaque = (void*)idx ;
+		return m_decoder = codec_ctx ;
+	}
+
+public:
+	const int GetStreamIdx()
+	{
+		if ( m_decoder )
+		{
+			return (int)m_decoder->opaque ;
+		}
+
+		return -1 ;
+	}
+	
+	bool operator () ()
+	{
+		return m_cb( m_timebase, m_frame ) ;
+	}
+
+	operator AVCodecContext* ()
+	{
+		return m_decoder ;
+	}
+
+	operator AVFrame* ()
+	{
+		return m_frame ;
+	}
+
+private:
+	CFFmpegAVCodecContext	m_decoder	;
+	CFFmpegAVFrame			m_frame		;
+	AVRational				m_timebase	;
+	CBTYPE					m_cb		;
+};
+
 //////////////////////////////////////////////////////////////////////////
 
 class CFFmpegVideoFilterGraph
@@ -400,10 +484,11 @@ private:
 
 //////////////////////////////////////////////////////////////////////////
 
-inline int sl_ffmpeg_decode_packet( bool& decoding_continue, AVPacket& pkt, int& got_frame, CFFmpegVideoDecoder& decoder_video )
+inline int sl_ffmpeg_decode_packet( bool& decoding_continue, AVPacket& pkt, int& got_frame,
+	CFFmpegVideoDecoder& decoder_video, CFFmpegAudioDecoder& decoder_audio )
 {
-	auto idx_video = decoder_video.GetStreamIdx() ;
-	const auto idx_audio = (int)-2 ;
+	const auto idx_video = decoder_video.GetStreamIdx() ;
+	const auto idx_audio = decoder_audio.GetStreamIdx() ;
 	auto decoded = pkt.size ;
 	got_frame = 0 ;
 	
@@ -423,19 +508,25 @@ inline int sl_ffmpeg_decode_packet( bool& decoding_continue, AVPacket& pkt, int&
 
 	else if ( pkt.stream_index == idx_audio )
 	{
-// 		const auto ret = avcodec_decode_audio4( decoder_video, frame_video, &got_frame, &pkt ) ;
-// 		if ( ret < 0 )
-// 		{
-// 			return ret ;
-// 		}
-// 
-// 		decoded = FFMIN( ret, pkt.size ) ;
+		const auto ret = avcodec_decode_audio4( decoder_audio, decoder_audio, &got_frame, &pkt ) ;
+		if ( ret < 0 )
+		{
+			return ret ;
+		}
+		
+		decoded = FFMIN( ret, pkt.size ) ;
+		
+		if ( got_frame )
+		{
+			decoding_continue = decoder_audio() ;
+		}
 	}
-
+	
 	return decoded ;
 }
 
-inline void sl_ffmpeg_decoding( AVFormatContext* input_file, CFFmpegVideoDecoder& decoder_video )
+inline void sl_ffmpeg_decoding( AVFormatContext* input_file,
+	CFFmpegVideoDecoder& decoder_video, CFFmpegAudioDecoder& decoder_audio )
 {
 	bool decoding_continue = true ;
 	int got_frame = 0 ;
@@ -451,7 +542,7 @@ inline void sl_ffmpeg_decoding( AVFormatContext* input_file, CFFmpegVideoDecoder
 
 		do 
 		{
-			const auto ret = sl_ffmpeg_decode_packet( decoding_continue, pkt, got_frame, decoder_video ) ;
+			const auto ret = sl_ffmpeg_decode_packet( decoding_continue, pkt, got_frame, decoder_video, decoder_audio ) ;
 			if ( ret < 0 )
 			{
 				break ;
@@ -466,7 +557,8 @@ inline void sl_ffmpeg_decoding( AVFormatContext* input_file, CFFmpegVideoDecoder
 	}
 }
 
-inline void sl_ffmpeg_decoding_flush( AVFormatContext* input_file, CFFmpegVideoDecoder& decoder_video )
+inline void sl_ffmpeg_decoding_flush( AVFormatContext* input_file,
+	CFFmpegVideoDecoder& decoder_video, CFFmpegAudioDecoder& decoder_audio )
 {
 	bool decoding_continue = true ;
 	int got_frame = 0 ;
@@ -477,7 +569,7 @@ inline void sl_ffmpeg_decoding_flush( AVFormatContext* input_file, CFFmpegVideoD
 	pkt.size = 0 ;
 	
 	do {
-		sl_ffmpeg_decode_packet( decoding_continue, pkt, got_frame, decoder_video ) ;
+		sl_ffmpeg_decode_packet( decoding_continue, pkt, got_frame, decoder_video, decoder_audio ) ;
 	} while ( got_frame && decoding_continue ) ;
 }
 
