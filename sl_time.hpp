@@ -6,7 +6,7 @@
 
 //////////////////////////////////////////////////////////////////////////
 
-class CSteadyClock
+class CSteadyClock final
 {
 private:
 	typedef std::chrono::steady_clock clock_type ;
@@ -17,7 +17,7 @@ public:
 	~CSteadyClock	() = default ;
 
 public:
-	operator bool () const
+	operator bool ()
 	{
 		decltype( m_clock ) clear_clock ;
 		return m_clock != clear_clock ;
@@ -34,7 +34,7 @@ public:
 		m_clock = clock_type::now() ;
 	}
 	
-	clock_type::duration Elapsed() const
+	clock_type::duration Elapsed()
 	{
 		return clock_type::now() - m_clock ;
 	}

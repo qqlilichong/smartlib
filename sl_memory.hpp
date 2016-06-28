@@ -5,7 +5,7 @@
 //////////////////////////////////////////////////////////////////////////
 
 template< class handle_type, handle_type invalid_val, void (*free_sink)(handle_type&) >
-class CSmartHandle
+class CSmartHandle final
 {
 public:
 	CSmartHandle()

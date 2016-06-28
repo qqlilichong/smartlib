@@ -15,12 +15,17 @@
 #include <boost/thread/scoped_thread.hpp>
 #include <boost/thread/shared_lock_guard.hpp>
 
-class CSmartThread
+class CSmartThread final
 {
 private:
 	typedef std::function< int( boost::thread::id ) > CBTYPE ;
 
 public:
+	CSmartThread()
+	{
+
+	}
+
 	~CSmartThread()
 	{
 		this->ExitThread() ;
@@ -66,6 +71,11 @@ public:
 			m_pth->join() ;
 			m_pth.reset() ;
 		}
+	}
+	
+	operator bool ()
+	{
+		return (bool)m_pth ;
 	}
 
 	bool operator == ( boost::thread::id tid )
