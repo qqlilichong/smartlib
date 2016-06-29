@@ -6,7 +6,10 @@
 
 #ifdef __sl_boost_hpp
 
+#ifndef BOOST_THREAD_VERSION
 #define BOOST_THREAD_VERSION 4
+#endif
+
 #include <boost/thread.hpp>
 #include <boost/thread/lock_factories.hpp>
 #include <boost/thread/lockable_adapter.hpp>
