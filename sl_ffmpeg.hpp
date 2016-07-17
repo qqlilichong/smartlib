@@ -11,7 +11,6 @@ extern "C"
 #include <libavformat/avformat.h>
 #include <libavdevice/avdevice.h>
 #include <libavcodec/avcodec.h>
-#include <libswscale/swscale.h>
 #include <libavfilter/avfilter.h>
 #include <libavfilter/buffersrc.h>
 #include <libavfilter/buffersink.h>
@@ -20,151 +19,12 @@ extern "C"
 
 //////////////////////////////////////////////////////////////////////////
 
-inline void CSmartHandleDeleter_avformat_close_input( AVFormatContext*& handle )
-{
-	avformat_close_input( &handle ) ;
-}
-
-inline void CSmartHandleDeleter_avcodec_close( AVCodecContext*& handle )
-{
-	avcodec_close( handle ) ;
-}
-
-inline void CSmartHandleDeleter_av_frame_free( AVFrame*& handle )
-{
-	av_frame_free( &handle ) ;
-}
-
-inline void CSmartHandleDeleter_sws_freeContext( SwsContext*& handle )
-{
-	sws_freeContext( handle ) ;
-}
-
-inline void CSmartHandleDeleter_avfilter_inout_free( AVFilterInOut*& handle )
-{
-	avfilter_inout_free( &handle ) ;
-}
-
-inline void CSmartHandleDeleter_avfilter_graph_free( AVFilterGraph*& handle )
-{
-	avfilter_graph_free( &handle ) ;
-}
-
-inline void CSmartHandleDeleter_av_frame_unref( AVFrame*& handle )
-{
-	av_frame_unref( handle ) ;
-}
-
-typedef CSmartHandle< AVFormatContext*,	nullptr,	CSmartHandleDeleter_avformat_close_input	>	CFFmpegAVFormatContext	;
-typedef CSmartHandle< AVCodecContext*,	nullptr,	CSmartHandleDeleter_avcodec_close			>	CFFmpegAVCodecContext	;
-typedef CSmartHandle< AVFrame*,			nullptr,	CSmartHandleDeleter_av_frame_free			>	CFFmpegAVFrame			;
-typedef CSmartHandle< SwsContext*,		nullptr,	CSmartHandleDeleter_sws_freeContext			>	CFFmpegSwsContext		;
-typedef CSmartHandle< AVFilterInOut*,	nullptr,	CSmartHandleDeleter_avfilter_inout_free		>	CFFmpegAVFilterInOut	;
-typedef CSmartHandle< AVFilterGraph*,	nullptr,	CSmartHandleDeleter_avfilter_graph_free		>	CFFmpegAVFilterGraph	;
-typedef CSmartHandle< AVFrame*,			nullptr,	CSmartHandleDeleter_av_frame_unref			>	CFFmpegRefAVFrame		;
-
-//////////////////////////////////////////////////////////////////////////
-
-class CFFmpegSws
-{
-public:
-	bool Init(
-		int pix_fmt_src, int width_src, int height_src,
-		int pix_fmt_dst, int width_dst = 0, int height_dst = 0,
-		int flags = SWS_BILINEAR )
-	{
-		if ( width_dst == 0 )
-		{
-			width_dst = width_src ;
-		}
-		
-		if ( height_dst == 0 )
-		{
-			height_dst = height_src ;
-		}
-		
-		m_sws = sws_getContext(
-			width_src, height_src, (AVPixelFormat)pix_fmt_src,
-			width_dst, height_dst, (AVPixelFormat)pix_fmt_dst,
-			flags, nullptr, nullptr, nullptr ) ;
-
-		return m_sws ;
-	}
-	
-	bool InitFrame(
-		int pix_fmt_src, int width_src, int height_src,
-		int pix_fmt_dst, int width_dst = 0, int height_dst = 0,
-		int flags = SWS_BILINEAR )
-	{
-		if ( width_dst == 0 )
-		{
-			width_dst = width_src ;
-		}
-		
-		if ( height_dst == 0 )
-		{
-			height_dst = height_src ;
-		}
-		
-		m_frame = av_frame_alloc() ;
-		if ( !m_frame )
-		{
-			return false ;
-		}
-
-		m_frame->format = pix_fmt_dst ;
-		m_frame->width = width_dst ;
-		m_frame->height = height_dst ;
-		if ( av_frame_get_buffer( m_frame, 1 ) != 0 )
-		{
-			return false ;
-		}
-		
-		return this->Init(
-			pix_fmt_src, width_src, height_src,
-			pix_fmt_dst, width_dst, height_dst,
-			flags ) ;
-	}
-
-	bool ScaleFrame( AVFrame* pSrcFrame )
-	{
-		return this->Scale( pSrcFrame, m_frame ) ;
-	}
-	
-	bool Scale( AVFrame* pSrcFrame, AVFrame* pDstFrame )
-	{
-		return sws_scale( m_sws, pSrcFrame->data, pSrcFrame->linesize,
-			0, pSrcFrame->height,
-			pDstFrame->data, pDstFrame->linesize ) > 0 ;
-	}
-	
-	bool Scale( AVFrame* pSrcFrame, uint8_t *const dst[], const int dstStride[] )
-	{
-		return sws_scale( m_sws, pSrcFrame->data, pSrcFrame->linesize,
-			0, pSrcFrame->height,
-			dst, dstStride ) > 0 ;
-	}
-
-public:
-	operator bool ()
-	{
-		return m_sws ;
-	}
-
-	AVFrame* operator -> ()
-	{
-		return m_frame ;
-	}
-
-	operator AVFrame* ()
-	{
-		return m_frame ;
-	}
-
-private:
-	CFFmpegSwsContext	m_sws	;
-	CFFmpegAVFrame		m_frame	;
-};
+DECLARE_SLSH( CFFmpegAVFormatContext,	AVFormatContext*,	nullptr, avformat_close_input( &handle )	) ;
+DECLARE_SLSH( CFFmpegAVCodecContext,	AVCodecContext*,	nullptr, avcodec_close( handle )			) ;
+DECLARE_SLSH( CFFmpegAVFrame,			AVFrame*,			nullptr, av_frame_free( &handle )			) ;
+DECLARE_SLSH( CFFmpegAVFilterInOut,		AVFilterInOut*,		nullptr, avfilter_inout_free( &handle )		) ;
+DECLARE_SLSH( CFFmpegAVFilterGraph,		AVFilterGraph*,		nullptr, avfilter_graph_free( &handle )		) ;
+DECLARE_SLSH( CFFmpegRefAVFrame,		AVFrame*,			nullptr, av_frame_unref( handle )			) ;
 
 //////////////////////////////////////////////////////////////////////////
 
@@ -228,6 +88,11 @@ public:
 		}
 
 		return -1 ;
+	}
+
+	operator bool ()
+	{
+		return m_decoder ;
 	}
 	
 	bool operator () ()
@@ -312,6 +177,11 @@ public:
 		}
 
 		return -1 ;
+	}
+
+	operator bool ()
+	{
+		return m_decoder ;
 	}
 	
 	bool operator () ()

@@ -13,42 +13,32 @@
 
 inline wstring SL_StringA2W( const char* str, const char* charset = "GBK" )
 {
-	return std::move( boost::locale::conv::to_utf< wchar_t >( str, charset ) ) ;
+	return boost::locale::conv::to_utf< wchar_t >( str, charset ) ;
 }
 
 inline string SL_StringA2U8( const char* str, const char* charset = "GBK" )
 {
-	return std::move( boost::locale::conv::to_utf< char >( str, charset ) ) ;
+	return boost::locale::conv::to_utf< char >( str, charset ) ;
 }
 
 inline string SL_StringW2A( const wchar_t* str, const char* charset = "GBK" )
 {
-	return std::move( boost::locale::conv::from_utf( str, charset ) ) ;
+	return boost::locale::conv::from_utf( str, charset ) ;
 }
 
 inline string SL_StringW2U8( const wchar_t* str )
 {
-	return std::move( boost::locale::conv::utf_to_utf< char, wchar_t >( str ) ) ;
+	return boost::locale::conv::utf_to_utf< char, wchar_t >( str ) ;
 }
 
 inline string SL_StringU82A( const char* str, const char* charset = "GBK" )
 {
-	return std::move( boost::locale::conv::from_utf( str, charset ) ) ;
+	return boost::locale::conv::from_utf( str, charset ) ;
 }
 
 inline wstring SL_StringU82W( const char* str )
 {
-	return std::move( boost::locale::conv::utf_to_utf< wchar_t, char >( str ) ) ;
-}
-
-template< class S, class F1, class F2 >
-inline void SL_StringReplaceTail( S& str, F1 flag, F2 re )
-{
-	auto reg = boost::find_last( str, flag ) ;
-	if ( reg )
-	{
-		boost::replace_tail( str, str.begin() - reg.begin(), re ) ;
-	}
+	return boost::locale::conv::utf_to_utf< wchar_t, char >( str ) ;
 }
 
 //////////////////////////////////////////////////////////////////////////
@@ -71,7 +61,7 @@ public:
 		boost::filesystem::path p( boost::log::aux::get_process_name() ) ;
 		p = boost::filesystem::system_complete( p ) ;
 		p.replace_extension( SUP::Adapter() ) ;
-		m_file = std::move( p.generic_string() ) ;
+		m_file = p.generic_string() ;
 		
 		return SUP::LoadAdapter( m_file, m_bpt, m_what ) ;
 	}
@@ -82,8 +72,8 @@ public:
 		p = boost::filesystem::system_complete( p ) ;
 		p.remove_filename() ;
 		p /= add ;
-		m_file = std::move( p.generic_string() ) ;
-
+		m_file = p.generic_string() ;
+		
 		return SUP::LoadAdapter( m_file, m_bpt, m_what ) ;
 	}
 
@@ -235,7 +225,7 @@ public:
 	{
 		try
 		{
-			return std::move( SAVE::m_bpt.get( key, val ) ) ;
+			return SAVE::m_bpt.get( key, val ) ;
 		}
 
 		catch ( std::exception& exp )
@@ -253,7 +243,7 @@ public:
 
 		try
 		{
-			ret = std::move( SAVE::m_bpt.get( key, val ) ) ;
+			ret = SAVE::m_bpt.get( key, val ) ;
 		}
 
 		catch ( std::exception& exp )
@@ -272,7 +262,7 @@ public:
 			SAVE::m_what = exp.what() ;
 		}
 
-		return std::move( ret ) ;
+		return ret ;
 	}
 	
 	template< class K, class V >
