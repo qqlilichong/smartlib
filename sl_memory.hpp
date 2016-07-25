@@ -17,22 +17,22 @@ public:
 	{
 		return *this = obj.DetachHandle() ;
 	}
-
-	CSmartHandle()
-	{
-		m_handle = invalid_val ;
-	}
 	
 	CSmartHandle( CSmartHandle&& tmp )
 	{
 		*this = std::move( tmp ) ;
 	}
-
+	
 	CSmartHandle( handle_type handle )
 	{
 		m_handle = handle ;
 	}
+	
+	CSmartHandle() : CSmartHandle( invalid_val )
+	{
 
+	}
+	
 	~CSmartHandle()
 	{
 		this->FreeHandle() ;
@@ -132,7 +132,7 @@ public:
 		
 		if ( ( m_buffer_offset + src_size ) > m_buffer_max )
 		{
-			return 1 ;
+			return -1 ;
 		}
 		
 		uint8_t* dst_ptr = m_buffer_stream ;

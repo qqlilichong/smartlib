@@ -10,11 +10,7 @@ class CSteadyClock final
 {
 private:
 	typedef std::chrono::steady_clock clock_type ;
-	clock_type::time_point m_clock = clock_type::now() ;
-
-public:
-	CSteadyClock	() = default ;
-	~CSteadyClock	() = default ;
+	decltype( clock_type::now() ) m_clock = clock_type::now() ;
 
 public:
 	operator bool ()
