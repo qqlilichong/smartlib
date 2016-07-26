@@ -4,6 +4,7 @@
 #include <mmreg.h>
 #include <dsound.h>
 #pragma comment( lib, "dsound.lib" )
+#pragma comment( lib, "dxguid.lib" )
 
 //////////////////////////////////////////////////////////////////////////
 
@@ -29,7 +30,8 @@ public:
 	}
 
 private:
-	CComQIPtr< IDirectSound, &IID_IDirectSound > m_dsound ;
+	CComQIPtr< IDirectSound,
+		&IID_IDirectSound > m_dsound ;
 };
 
 //////////////////////////////////////////////////////////////////////////
@@ -37,157 +39,138 @@ private:
 class CDSoundBuffer
 {
 public:
-	typedef std::function< int( void*, size_t ) > CBTYPE ;
-
-	CDSoundBuffer()
+	HRESULT CreateBuffer( IDirectSound* pDS, DWORD nSamplesPerSec, WORD nChannels, WORD wBitsPerSample )
 	{
-		m_wfm = { 0 } ;
-		m_desc = { 0 } ;
-	}
-
-	~CDSoundBuffer()
-	{
-		this->FreeDSoundBuffer() ;
-	}
-
-	int CreateDSoundBuffer( IDirectSound* pDS, DWORD nSamplesPerSec, WORD nChannels, WORD wBitsPerSample )
-	{
-		if ( m_dsbuf )
+		if ( pDS == nullptr || m_dsound_buffer != nullptr )
 		{
-			return -1 ;
+			return S_FALSE ;
 		}
 
-		m_play_pos = 0 ;
-		
-		m_wfm = { 0 } ;
-		m_wfm.wFormatTag = WAVE_FORMAT_PCM ;
-		m_wfm.nChannels = nChannels ;
-		m_wfm.nSamplesPerSec = nSamplesPerSec ;
-		m_wfm.wBitsPerSample = wBitsPerSample ;
-		m_wfm.nBlockAlign = m_wfm.wBitsPerSample / 8 * m_wfm.nChannels ;
-		m_wfm.nAvgBytesPerSec = m_wfm.nSamplesPerSec * m_wfm.nBlockAlign ;
-		
-		m_desc = { 0 } ;
-		m_desc.dwSize = sizeof( m_desc ) ;
-		m_desc.dwFlags = DSBCAPS_GETCURRENTPOSITION2 | DSBCAPS_GLOBALFOCUS | DSBCAPS_CTRLPAN ;
-		m_desc.dwBufferBytes = m_wfm.nAvgBytesPerSec / 2 ;
-		m_desc.lpwfxFormat = &m_wfm ;
+		WAVEFORMATEX wfm = { 0 } ;
+		wfm.wFormatTag = WAVE_FORMAT_PCM ;
+		wfm.nChannels = nChannels ;
+		wfm.nSamplesPerSec = nSamplesPerSec ;
+		wfm.wBitsPerSample = wBitsPerSample ;
+		wfm.nBlockAlign = wfm.wBitsPerSample / 8 * wfm.nChannels ;
+		wfm.nAvgBytesPerSec = wfm.nSamplesPerSec * wfm.nBlockAlign ;
 
-		if ( pDS->CreateSoundBuffer( &m_desc, &m_dsbuf, NULL ) != S_OK )
+		DSBUFFERDESC desc = { 0 } ;
+		desc.dwSize = sizeof( desc ) ;
+		desc.dwFlags = DSBCAPS_GETCURRENTPOSITION2 | DSBCAPS_GLOBALFOCUS | DSBCAPS_CTRLPAN | DSBCAPS_CTRLPOSITIONNOTIFY ;
+		desc.dwBufferBytes = wfm.nAvgBytesPerSec / 2 ;
+		desc.lpwfxFormat = &wfm ;
+		
+		if ( pDS->CreateSoundBuffer( &desc, &m_dsound_buffer, NULL ) != S_OK )
 		{
-			return -1 ;
+			return S_FALSE ;
 		}
 
-		return 0 ;
-	}
-
-	int FreeDSoundBuffer()
-	{
-		this->StopPlay() ;
-
-		m_wfm = { 0 } ;
-		m_desc = { 0 } ;
-		m_dsbuf.Release() ;
-		return 0 ;
-	}
-	
-	int ResetPlayLooping()
-	{
-		if ( this->StopPlay() != 0 )
+		m_notify_mid = CreateEvent( NULL, FALSE, FALSE, NULL ) ;
+		if ( !m_notify_mid )
 		{
-			return -1 ;
+			return S_FALSE ;
+		}
+
+		m_notify_end = CreateEvent( NULL, FALSE, FALSE, NULL ) ;
+		if ( !m_notify_end )
+		{
+			return S_FALSE ;
 		}
 		
-		if ( m_dsbuf->Play( 0, 0, DSBPLAY_LOOPING ) != S_OK )
+		CComQIPtr< IDirectSoundNotify, 
+			&IID_IDirectSoundNotify > dsNotify ;
+		if ( m_dsound_buffer->QueryInterface( IID_IDirectSoundNotify, (void**)&dsNotify ) != S_OK )
 		{
-			return -1 ;
+			return S_FALSE ;
 		}
 		
-		return 0 ;
-	}
-
-	int StopPlay()
-	{
-		if ( !m_dsbuf )
+		DSBPOSITIONNOTIFY dsb[ 2 ] ;
+		dsb[ 0 ].dwOffset = ( desc.dwBufferBytes / 2 ) - 1 ;
+		dsb[ 0 ].hEventNotify = m_notify_mid ;
+		dsb[ 1 ].dwOffset = desc.dwBufferBytes - 1 ;
+		dsb[ 1 ].hEventNotify = m_notify_end ;
+		if ( dsNotify->SetNotificationPositions( 2, dsb ) != S_OK )
 		{
-			return -1 ;
+			return S_FALSE ;
 		}
 
-		m_dsbuf->Stop() ;
-		m_play_pos = 0 ;
-
-		if ( true )
-		{
-			LPVOID audio_buffer_ptr = nullptr ;
-			DWORD audio_buffer_size = 0 ;
-			if ( m_dsbuf->Lock( 0, m_desc.dwBufferBytes,
-				&audio_buffer_ptr, &audio_buffer_size, nullptr, nullptr, 0 ) != S_OK )
-			{
-				return -1 ;
-			}
-			
-			SecureZeroMemory( audio_buffer_ptr, audio_buffer_size ) ;
-			m_dsbuf->Unlock( audio_buffer_ptr, audio_buffer_size, nullptr, 0 ) ;
-		}
-		
-		if ( m_dsbuf->SetCurrentPosition( 0 ) != S_OK )
-		{
-			return -1 ;
-		}
-
-		return 0 ;
+		m_dwBufferBytes = desc.dwBufferBytes ;
+		return S_OK ;
 	}
 	
-	int LoopDSoundBuffer( CBTYPE cb )
+	HRESULT ResetPlayLooping()
 	{
-		if ( !m_dsbuf || !cb )
+		if ( this->StopPlay() != S_OK )
 		{
-			return -1 ;
+			return S_FALSE ;
 		}
 		
-		const DWORD mid_pos = m_desc.dwBufferBytes / 2 ;
-		
-		DWORD play_pos = 0 ;
-		if ( m_dsbuf->GetCurrentPosition( &play_pos, nullptr ) != S_OK )
+		if ( m_dsound_buffer->Play( 0, 0, DSBPLAY_LOOPING ) != S_OK )
 		{
-			return -1 ;
+			return S_FALSE ;
 		}
+		
+		return S_OK ;
+	}
+
+	HRESULT StopPlay()
+	{
+		if ( !m_dsound_buffer )
+		{
+			return S_FALSE ;
+		}
+		
+		m_dsound_buffer->Stop() ;
 		
 		LPVOID audio_buffer_ptr = nullptr ;
 		DWORD audio_buffer_size = 0 ;
-		
-		if ( ( play_pos >= mid_pos ) && ( m_play_pos < mid_pos ) )
+		if ( m_dsound_buffer->Lock( 0, m_dwBufferBytes,
+			&audio_buffer_ptr, &audio_buffer_size, nullptr, nullptr, 0 ) == S_OK )
 		{
-			m_dsbuf->Lock( 0, mid_pos, &audio_buffer_ptr, &audio_buffer_size, nullptr, nullptr, 0 ) ;
+			SecureZeroMemory( audio_buffer_ptr, audio_buffer_size ) ;
+			m_dsound_buffer->Unlock( audio_buffer_ptr, audio_buffer_size, nullptr, 0 ) ;
 		}
-		
-		else if ( play_pos < m_play_pos )
+
+		return m_dsound_buffer->SetCurrentPosition( 0 ) ;
+	}
+
+	HRESULT LoopBuffer( std::function< void( void*, size_t ) > cb )
+	{
+		LPVOID audio_buffer_ptr = nullptr ;
+		DWORD audio_buffer_size = 0 ;
+
+		HANDLE hEvents[ 2 ] = { 0 } ;
+		hEvents[ 0 ] = m_notify_mid ;
+		hEvents[ 1 ] = m_notify_end ;
+		switch ( MsgWaitForMultipleObjects( 2, hEvents, FALSE, INFINITE, QS_ALLINPUT ) )
 		{
-			m_dsbuf->Lock( mid_pos, mid_pos, &audio_buffer_ptr, &audio_buffer_size, nullptr, nullptr, 0 ) ;
+		case WAIT_OBJECT_0 :
+			m_dsound_buffer->Lock( 0, m_dwBufferBytes / 2,
+				&audio_buffer_ptr, &audio_buffer_size, nullptr, nullptr, 0 ) ;
+			break ;
+
+		case WAIT_OBJECT_0 + 1 :
+			m_dsound_buffer->Lock( m_dwBufferBytes / 2, m_dwBufferBytes / 2,
+				&audio_buffer_ptr, &audio_buffer_size, nullptr, nullptr, 0 ) ;
+			break ;
 		}
-		
-		m_play_pos = play_pos ;
-		
+
 		if ( audio_buffer_size )
 		{
 			cb( audio_buffer_ptr, audio_buffer_size ) ;
-			m_dsbuf->Unlock( audio_buffer_ptr, audio_buffer_size, nullptr, 0 ) ;
+			m_dsound_buffer->Unlock( audio_buffer_ptr, audio_buffer_size, nullptr, 0 ) ;
 		}
 		
-		return 0 ;
-	}
-
-	operator bool ()
-	{
-		return m_dsbuf != nullptr ;
+		return S_OK ;
 	}
 
 private:
 	CComQIPtr< IDirectSoundBuffer,
-		&IID_IDirectSoundBuffer >	m_dsbuf			;
-	DWORD							m_play_pos = 0	;
-	WAVEFORMATEX					m_wfm			;
-	DSBUFFERDESC					m_desc			;
+		&IID_IDirectSoundBuffer > m_dsound_buffer ;
+
+	DWORD			m_dwBufferBytes = 0	;
+	CAutoHandle		m_notify_mid		;
+	CAutoHandle		m_notify_end		;
 };
 
 //////////////////////////////////////////////////////////////////////////
