@@ -2,8 +2,6 @@
 #ifndef __sl_time_hpp
 #define __sl_time_hpp
 
-#include <chrono>
-
 //////////////////////////////////////////////////////////////////////////
 
 class CSteadyClock final

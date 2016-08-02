@@ -24,7 +24,6 @@ DECLARE_SLSH( CFFmpegAVCodecContext,	AVCodecContext*,	nullptr, avcodec_close( ha
 DECLARE_SLSH( CFFmpegAVFrame,			AVFrame*,			nullptr, av_frame_free( &handle )			) ;
 DECLARE_SLSH( CFFmpegAVFilterInOut,		AVFilterInOut*,		nullptr, avfilter_inout_free( &handle )		) ;
 DECLARE_SLSH( CFFmpegAVFilterGraph,		AVFilterGraph*,		nullptr, avfilter_graph_free( &handle )		) ;
-DECLARE_SLSH( CFFmpegRefAVFrame,		AVFrame*,			nullptr, av_frame_unref( handle )			) ;
 
 //////////////////////////////////////////////////////////////////////////
 
@@ -134,14 +133,14 @@ public:
 		return av_buffersrc_add_frame( m_filter_src, pFrameIn ) >= 0 ;
 	}
 
-	CFFmpegRefAVFrame GraphOut()
+	bool GraphOut( AVFrame* pFrameOut )
 	{
-		if ( av_buffersink_get_frame( m_filter_sink, m_frame_out ) < 0 )
+		if ( av_buffersink_get_frame( m_filter_sink, pFrameOut ) < 0 )
 		{
-			return CFFmpegRefAVFrame( nullptr ) ;
+			return false ;
 		}
-		
-		return CFFmpegRefAVFrame( m_frame_out ) ;
+
+		return true ;
 	}
 
 	bool GetTimeBase( AVRational& time_base )
@@ -162,7 +161,6 @@ public:
 
 protected:
 	CFFmpegAVFilterGraph	m_graph					;
-	CFFmpegAVFrame			m_frame_out				;
 	AVFilterContext*		m_filter_src = nullptr	;
 	AVFilterContext*		m_filter_sink = nullptr	;
 };
@@ -253,12 +251,6 @@ public:
 			}
 
 			if ( avfilter_graph_config( m_graph, nullptr ) < 0 )
-			{
-				throw -1 ;
-			}
-
-			m_frame_out = av_frame_alloc() ;
-			if ( !m_frame_out )
 			{
 				throw -1 ;
 			}
@@ -379,12 +371,6 @@ public:
 			}
 
 			if ( avfilter_graph_config( m_graph, nullptr ) < 0 )
-			{
-				throw -1 ;
-			}
-
-			m_frame_out = av_frame_alloc() ;
-			if ( !m_frame_out )
 			{
 				throw -1 ;
 			}

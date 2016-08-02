@@ -1,6 +1,6 @@
 
-#ifndef __sl_stl_hpp
-#define __sl_stl_hpp
+#ifndef __sl_std_hpp
+#define __sl_std_hpp
 
 #include <iostream>
 #include <sstream>
@@ -11,15 +11,19 @@
 #include <list>
 #include <stack>
 #include <tuple>
+
 #include <algorithm>
 #include <regex>
-
 #include <memory>
 #include <functional>
 
+#include <chrono>
+#include <thread>
 #include <atomic>
 #include <mutex>
 
+#include <stdint.h>
+
 using namespace std ;
 
-#endif // #ifndef __sl_stl_hpp
+#endif // #ifndef __sl_std_hpp

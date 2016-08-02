@@ -2,8 +2,6 @@
 #ifndef __sl_memory_hpp
 #define __sl_memory_hpp
 
-#include <stdint.h>
-
 //////////////////////////////////////////////////////////////////////////
 
 template< class handle_type, handle_type invalid_val, void(&free_sink)( handle_type& ) >
@@ -94,85 +92,6 @@ private:
 #define	DECLARE_SLSH( name, val, nul, fun ) \
 		inline void CSmartHandleDeleter_##name( val& handle ) { fun ; } \
 		using name = CSmartHandle< val, nul, CSmartHandleDeleter_##name > ;
-
-//////////////////////////////////////////////////////////////////////////
-
-DECLARE_SLSH( CByteBuffer, uint8_t*, nullptr, delete []handle ) ;
-
-class CByteStream
-{
-public:
-	int CreateByteStream( size_t buffer_max )
-	{
-		m_buffer_stream = new uint8_t[ buffer_max ] ;
-		if ( !m_buffer_stream )
-		{
-			return -1 ;
-		}
-		
-		m_buffer_max = buffer_max ;
-		m_buffer_offset = 0 ;
-		return 0 ;
-	}
-
-	int FreeByteStream()
-	{
-		m_buffer_max = 0 ;
-		m_buffer_offset = 0 ;
-		m_buffer_stream.FreeHandle() ;
-		return 0 ;
-	}
-
-	int Fill( void* src_ptr, size_t src_size )
-	{
-		if ( !m_buffer_stream )
-		{
-			return -1 ;
-		}
-		
-		if ( ( m_buffer_offset + src_size ) > m_buffer_max )
-		{
-			return -1 ;
-		}
-		
-		uint8_t* dst_ptr = m_buffer_stream ;
-		memcpy( dst_ptr + m_buffer_offset, src_ptr, src_size ) ;
-		m_buffer_offset += src_size ;
-		return 0 ;
-	}
-	
-	int Pick( void* dst_ptr, size_t pick_size )
-	{
-		if ( !m_buffer_stream )
-		{
-			return -1 ;
-		}
-		
-		if ( m_buffer_offset < pick_size )
-		{
-			return -1 ;
-		}
-		
-		uint8_t* src_ptr = m_buffer_stream ;
-		memcpy( dst_ptr, src_ptr, pick_size ) ;
-		
-		const size_t new_offset = m_buffer_offset - pick_size ;
-		memcpy( src_ptr, src_ptr + pick_size, new_offset ) ;
-		m_buffer_offset = new_offset ;
-		
-		return 0 ;
-	}
-
-	operator bool ()
-	{
-		return m_buffer_stream ;
-	}
-
-private:
-	size_t		m_buffer_max	= 0 ;
-	size_t		m_buffer_offset	= 0	;
-	CByteBuffer	m_buffer_stream		;
-};
 
 //////////////////////////////////////////////////////////////////////////
 
